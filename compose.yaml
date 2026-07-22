@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: ./backend
+    environment:
+      FIRE_VIDEO_DEFAULT_PROVIDER: ${VIDEO_PROVIDER:-mock}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy

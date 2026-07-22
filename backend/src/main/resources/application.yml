@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: fire-api
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+fire:
+  video:
+    default-provider: ${FIRE_VIDEO_DEFAULT_PROVIDER:mock}
