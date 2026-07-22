@@ -49,7 +49,6 @@ public class VideoProjectService {
     }
 
     public VideoProject start(UUID projectId, String requestedProvider) {
-        var project = store.getRequired(projectId);
         var providerName = requestedProvider == null || requestedProvider.isBlank()
                 ? defaultProvider
                 : requestedProvider.trim().toLowerCase();
@@ -58,11 +57,7 @@ public class VideoProjectService {
             throw new UnknownProviderException(providerName);
         }
 
-        try {
-            project.queue();
-        } catch (IllegalStateException exception) {
-            throw new InvalidProjectStateException();
-        }
+        var project = store.queueForGeneration(projectId, providerName);
         orchestrator.generate(projectId, providerName);
         return project;
     }

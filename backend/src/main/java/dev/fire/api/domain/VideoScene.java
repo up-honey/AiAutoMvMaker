@@ -13,10 +13,35 @@ public final class VideoScene {
     private volatile String errorCode;
 
     public VideoScene(int sequence, String prompt) {
-        this.id = UUID.randomUUID();
+        this(UUID.randomUUID(), sequence, prompt, SceneStatus.PENDING, null, null, null);
+    }
+
+    private VideoScene(
+            UUID id,
+            int sequence,
+            String prompt,
+            SceneStatus status,
+            String providerJobId,
+            String previewUri,
+            String errorCode) {
+        this.id = id;
         this.sequence = sequence;
         this.prompt = prompt;
-        this.status = SceneStatus.PENDING;
+        this.status = status;
+        this.providerJobId = providerJobId;
+        this.previewUri = previewUri;
+        this.errorCode = errorCode;
+    }
+
+    public static VideoScene restore(
+            UUID id,
+            int sequence,
+            String prompt,
+            SceneStatus status,
+            String providerJobId,
+            String previewUri,
+            String errorCode) {
+        return new VideoScene(id, sequence, prompt, status, providerJobId, previewUri, errorCode);
     }
 
     public synchronized void markProcessing() {
@@ -34,6 +59,13 @@ public final class VideoScene {
     public synchronized void markFailed(String errorCode) {
         this.errorCode = errorCode;
         this.status = SceneStatus.FAILED;
+    }
+
+    public synchronized void prepareForRecovery() {
+        if (status == SceneStatus.PROCESSING) {
+            status = SceneStatus.PENDING;
+            errorCode = null;
+        }
     }
 
     public UUID getId() {

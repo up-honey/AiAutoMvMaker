@@ -3,7 +3,7 @@
 > 마지막 갱신: 2026-07-22
 > 프로젝트: Frame Intelligence Rendering Engine
 > 저장소: https://github.com/up-honey/AiAutoMvMaker
-> 현재 단계: 과금 없는 Mock 기반 영상 생성 오케스트레이션 MVP
+> 현재 단계: PostgreSQL 영속화가 적용된 과금 없는 Mock 영상 생성 오케스트레이션 MVP
 
 ## 1. 프로젝트 소개
 
@@ -31,14 +31,15 @@ FIRE는 공급자 연동을 어댑터 뒤로 분리하고, 프로젝트와 장�
 
 | 영역 | 기술 | 적용 내용 |
 |---|---|---|
-| Backend | Java 21, Spring Boot 4.1, Maven | REST API, 입력 검증, 비동기 작업 실행, 상태 관리 |
+| Backend | Java 21, Spring Boot 4.1, Spring JDBC, Maven | REST API, 입력 검증, 비동기 작업 실행, 상태 관리 |
 | Frontend | React 19, TypeScript 5.9, Vite 8 | 영상 기획 폼, 프로젝트 선택, 진행률 및 장면 상태 UI |
 | API | Spring Web MVC, Bean Validation | 구조화된 요청 검증과 오류 응답 |
+| Data | PostgreSQL 17, Flyway | 프로젝트·장면 영속화, 버전 기반 스키마 마이그레이션 |
 | Monitoring | Spring Boot Actuator | 애플리케이션 health/info 엔드포인트 |
 | Test | JUnit 5, AssertJ | 도메인 상태 전이와 Mock 공급자 성공·실패 검증 |
 | Runtime | Docker Compose, Docker, Nginx | API와 정적 웹을 분리한 로컬 실행 구성 |
 | Version Control | Git, GitHub | `master` 베이스와 `new` 작업 브랜치 운영 |
-| Planned | PostgreSQL, Redis/Queue, Object Storage, FFmpeg, 실제 영상 Provider | 영속화, 작업 복구, 렌더링, 실제 영상 생성으로 확장 예정 |
+| Planned | Redis/Queue, Object Storage, FFmpeg, 실제 영상 Provider | worker 분리, 렌더링, 실제 영상 생성으로 확장 예정 |
 
 ## 4. 현재 아키텍처
 
@@ -46,7 +47,7 @@ FIRE는 공급자 연동을 어댑터 뒤로 분리하고, 프로젝트와 장�
 flowchart LR
     USER["사용자"] --> UI["React Studio"]
     UI -->|REST| API["Spring Boot API"]
-    API --> STORE["In-memory Project Store"]
+    API --> STORE["PostgreSQL Project Store"]
     API --> WORKER["Async Orchestrator"]
     WORKER --> CONTRACT["VideoProvider interface"]
     CONTRACT --> MOCK["MockVideoProvider"]
@@ -62,6 +63,8 @@ flowchart LR
 - 각 장면도 `PENDING → PROCESSING → COMPLETED/FAILED` 상태를 독립적으로 가집니다.
 - `MockVideoProvider`는 과금 없이 지연, 성공 결과, 결정적 실패(`[fail]`)를 재현합니다.
 - API 오류는 HTTP 상태, 안전한 오류 코드, 메시지, 경로, 시각을 포함하는 구조로 반환합니다.
+- Flyway가 PostgreSQL 스키마를 관리하고 모든 프로젝트·장면 상태 변경을 DB에 저장합니다.
+- 서버 시작 시 중단된 작업을 찾아 완료 장면은 유지하고 미완료 장면부터 다시 실행합니다.
 
 ## 5. 현재 구현 범위
 
@@ -80,14 +83,16 @@ flowchart LR
 - [x] 1.5초 주기 polling을 통한 생성 상태 자동 갱신
 - [x] 세로형 `9:16`과 가로형 `16:9` 프로젝트 지원
 - [x] Actuator health/info 설정
-- [x] API·웹 Dockerfile, Nginx 프록시, Docker Compose 구성
-- [x] 도메인 상태 전이 및 Mock 공급자 성공·실패 단위 테스트
+- [x] PostgreSQL 기반 프로젝트·장면 영속화와 Flyway 마이그레이션
+- [x] 조건부 DB 갱신을 통한 동시 중복 생성 요청 방지
+- [x] 서버 시작 시 `QUEUED/PROCESSING` 작업 탐색 및 미완료 장면 복구
+- [x] API·웹 Dockerfile, PostgreSQL image, Nginx, Docker Compose 구성
+- [x] 도메인 상태 전이, Mock 공급자, 저장소, 복구 로직 테스트
 
 ### 아직 구현되지 않음
 
 - [ ] Sora, Veo 등 실제 영상 생성 공급자 연결
 - [ ] 실제 영상 파일 생성, 다운로드 및 미리보기 재생
-- [ ] PostgreSQL 영속화와 서버 재시작 후 작업 복구
 - [ ] Redis 또는 메시지 큐 기반 독립 worker
 - [ ] 장면별 재시도 API와 부분 재생성
 - [ ] 재시도 횟수, timeout, backoff, idempotency key
@@ -118,7 +123,7 @@ flowchart LR
 | 검증 | 결과 | 확인 내용 |
 |---|---|---|
 | Backend Maven verify | 성공 | 23개 소스 컴파일, JAR 패키징 성공 |
-| Backend unit tests | 4/4 성공 | 실패 0, 오류 0, 스킵 0 |
+| Backend tests | 8/8 성공 | 도메인·공급자·DB 저장소·복구 테스트, 실패 0, 오류 0, 스킵 0 |
 | Frontend production build | 성공 | TypeScript 검사 및 Vite 번들 생성 |
 | API smoke test | 성공 | health `UP`, 프로젝트와 장면의 `COMPLETED` 전이 확인 |
 | Browser workflow | 성공 | 프로젝트 생성 후 3개 장면이 100% 완료되는 흐름 확인 |
@@ -132,6 +137,8 @@ flowchart LR
 - 이미 대기 중인 프로젝트의 중복 시작 거절
 - Mock 공급자의 정상 작업 ID와 미리보기 URI 반환
 - 프롬프트에 `[fail]`을 넣었을 때 `MOCK_PROVIDER_REJECTED` 실패 재현
+- 프로젝트와 장면 전체 aggregate의 DB 저장·복원
+- 중단된 장면만 `PENDING`으로 전환하고 완료 장면은 유지하는 재시작 복구
 
 ## 8. 포트폴리오에서 강조할 내용
 
@@ -142,22 +149,24 @@ flowchart LR
 - 실제 과금 전에 Mock 구현으로 정상·실패 흐름과 UI를 먼저 검증했습니다.
 - 생성 작업의 원시 오류나 비밀 값을 노출하지 않고 안전한 오류 코드로 경계를 만들었습니다.
 - UI, API, 비동기 오케스트레이터를 하나의 실행 가능한 MVP 흐름으로 연결했습니다.
+- PostgreSQL 조건부 갱신으로 동시에 들어온 중복 생성 요청이 두 번 실행되지 않도록 했습니다.
+- 서버 재시작 시 DB에 남은 작업을 찾아 완료되지 않은 장면부터 이어서 처리합니다.
 
 ### 면접에서 설명할 트레이드오프
 
-- MVP 속도를 위해 현재는 in-memory 저장소와 polling을 사용했습니다.
-- in-memory 방식은 서버 재시작 시 데이터가 사라지고 다중 인스턴스 운영이 불가능하므로 PostgreSQL과 queue로 교체할 계획입니다.
+- 상태 저장은 명시적인 SQL과 aggregate 복원을 선택해 DB 갱신 시점과 동시성 조건을 직접 제어했습니다.
+- 현재 worker는 API 프로세스 내부에서 실행되므로 단일 인스턴스 복구는 가능하지만, 다중 인스턴스 확장 전에는 queue와 작업 claim이 필요합니다.
 - polling은 구현이 단순하지만 불필요한 요청이 발생하므로 작업 규모가 커지면 SSE 또는 WebSocket을 검토합니다.
 - 현재 실패 후 다시 실행하면 완료된 장면은 건너뛰지만, 실패한 장면의 명시적 재시도 정책과 시도 이력은 아직 없습니다.
 
 ## 9. 다음 개발 우선순위
 
-1. PostgreSQL에 프로젝트, 장면, 생성 시도 이력을 영속화합니다.
-2. idempotency key와 작업 claim을 추가해 중복 실행과 서버 재시작을 처리합니다.
+1. 생성 시도 이력, idempotency key, lease 기반 작업 claim을 추가합니다.
+2. Redis 또는 메시지 큐로 worker를 API 프로세스에서 분리합니다.
 3. 장면 단위 재시도·부분 재생성 API와 UI를 구현합니다.
 4. 실제 영상 공급자 하나를 어댑터로 연결하고 timeout·rate limit·비용 한도를 적용합니다.
 5. 생성 자산을 object storage에 저장하고 FFmpeg로 음성·자막·영상을 합성합니다.
-6. 통합 테스트, 프런트엔드 테스트, GitHub Actions CI를 추가합니다.
+6. API 통합 테스트, 프런트엔드 테스트, GitHub Actions CI를 추가합니다.
 7. 처리 시간, 성공률, 재시도율, 장면당 비용을 대시보드로 시각화합니다.
 
 ## 10. 성과 지표
@@ -166,10 +175,10 @@ flowchart LR
 
 | 지표 | 현재 기준 | 목표 |
 |---|---:|---:|
-| 자동화 테스트 | Backend 4개 | 핵심 API·실패·복구 시나리오 확대 |
+| 자동화 테스트 | Backend 8개 | 핵심 API·실패·복구 시나리오 확대 |
 | Mock 장면 처리 지연 | 장면당 약 300ms | 테스트에서 결정적이고 빠른 피드백 유지 |
 | 작업 상태 추적 | 프로젝트·장면 2단계 | 생성 시도와 비용 이벤트까지 확장 |
-| 서버 재시작 복구율 | 0% | 영속화 이후 100% 목표 |
+| 서버 재시작 복구율 | 복구 로직 테스트 완료, Compose 재시작 실측 필요 | 실제 환경 100% 목표 |
 | 부분 재생성 | 완료 장면 skip 수준 | 명시적 장면 선택과 비용 절감률 측정 |
 | 실제 공급자 비용 추적 | 미구현 | 생성 요청 100% 기록 |
 
@@ -183,6 +192,15 @@ flowchart LR
 - Docker/Nginx 실행 구성과 아키텍처·보안·작업 규칙 문서를 작성했습니다.
 - 백엔드 4개 테스트와 프런트엔드 프로덕션 빌드를 통과했습니다.
 - GitHub의 `master`와 `new` 브랜치에 베이스를 구성했습니다.
+
+### 2026-07-22 — PostgreSQL 영속화와 재시작 복구
+
+- 문제: 메모리에만 있던 프로젝트가 서버 재시작 시 사라지고, 처리 중 작업을 이어갈 수 없었습니다.
+- 구현: PostgreSQL 17, Spring JDBC, Flyway를 추가해 프로젝트와 장면 상태를 저장했습니다.
+- 기술적 결정: `DRAFT/FAILED` 상태만 `QUEUED`로 바꾸는 조건부 SQL로 중복 실행을 차단했습니다.
+- 복구: 시작 시 `QUEUED/PROCESSING` 작업을 찾아 완료 장면을 유지하고 중단 장면부터 재실행합니다.
+- 검증: 백엔드 테스트를 4개에서 8개로 확대했고 전체 패키징과 함께 통과했습니다.
+- 남은 과제: 실제 Docker Compose 환경의 강제 재시작 실측과 다중 worker용 lease/idempotency 구현이 필요합니다.
 
 ## 12. 앞으로 기록할 항목
 

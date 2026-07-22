@@ -19,6 +19,7 @@ export interface VideoProject {
   aspectRatio: '16:9' | '9:16'
   status: ProjectStatus
   errorCode: string | null
+  providerName: string | null
   createdAt: string
   updatedAt: string
   scenes: VideoScene[]

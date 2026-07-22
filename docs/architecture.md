@@ -7,7 +7,7 @@ The first version proves job orchestration without spending money on video gener
 ```mermaid
 flowchart LR
     UI["React studio"] -->|REST| API["Spring Boot API"]
-    API --> STORE["In-memory project store"]
+    API --> STORE["PostgreSQL project store"]
     API --> QUEUE["Async generation orchestrator"]
     QUEUE --> PROVIDER["VideoProvider"]
     PROVIDER --> MOCK["Mock provider"]
@@ -15,6 +15,8 @@ flowchart LR
     PROVIDER -. later .-> VEO["Veo adapter"]
     QUEUE --> STORE
 ```
+
+Flyway owns the database schema. Project creation and every project/scene transition are persisted through Spring JDBC. A conditional database update changes only `DRAFT` or `FAILED` projects to `QUEUED`, preventing concurrent duplicate starts.
 
 ## Project state
 
@@ -30,15 +32,17 @@ stateDiagram-v2
 
 Each scene independently moves through `PENDING`, `PROCESSING`, `COMPLETED`, or `FAILED`. A provider failure is recorded as a safe error code; raw credentials and response payloads are not returned to the UI.
 
+On application startup, projects left in `QUEUED` or `PROCESSING` are loaded from PostgreSQL. Completed scenes remain completed, interrupted scenes return to `PENDING`, and generation resumes with the persisted provider name.
+
 ## Provider contract
 
 `VideoProvider` receives a normalized command and returns a provider job id plus a preview reference. Provider adapters own API authentication and payload conversion. The orchestrator owns state transitions, retries, budgets, and idempotency.
 
 This separation prevents the product workflow from becoming coupled to one model vendor.
 
-## Next persistence design
+## Persistence design
 
-The in-memory store will be replaced with PostgreSQL tables for projects, scenes, attempts, assets, and cost events. A worker will claim jobs with an idempotency key. Input and output media will be stored in object storage, never in Git or database blobs.
+PostgreSQL currently stores projects and scenes. The next schema additions are generation attempts, assets, and cost events. A separate worker will claim jobs with an idempotency key. Input and output media will be stored in object storage, never in Git or database blobs.
 
 ## Safety decisions
 

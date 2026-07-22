@@ -41,16 +41,20 @@ public class VideoGenerationOrchestrator {
         var provider = providers.get(providerName.toLowerCase(Locale.ROOT));
         if (provider == null) {
             project.markFailed("UNKNOWN_PROVIDER");
+            store.save(project);
             return;
         }
 
         project.markProcessing();
+        store.save(project);
         for (var scene : project.getScenes()) {
             if (scene.getStatus() == SceneStatus.COMPLETED) {
                 continue;
             }
 
             scene.markProcessing();
+            project.recordProgress();
+            store.save(project);
             try {
                 var result = provider.generate(new VideoGenerationCommand(
                         project.getId(),
@@ -59,16 +63,21 @@ public class VideoGenerationOrchestrator {
                         project.getStylePrompt(),
                         project.getAspectRatio()));
                 scene.markCompleted(result.providerJobId(), result.previewUri());
+                project.recordProgress();
+                store.save(project);
             } catch (VideoProviderException exception) {
                 scene.markFailed(exception.getErrorCode());
                 project.markFailed(exception.getErrorCode());
+                store.save(project);
                 return;
             } catch (RuntimeException exception) {
                 scene.markFailed("PROVIDER_FAILURE");
                 project.markFailed("PROVIDER_FAILURE");
+                store.save(project);
                 return;
             }
         }
         project.markCompleted();
+        store.save(project);
     }
 }

@@ -2,7 +2,7 @@
 
 AI 영상 API를 단순 호출하는 앱이 아니라, 여러 장면을 안전하게 생성하고 실패를 복구하며 최종 영상으로 조립하는 제작 파이프라인입니다.
 
-현재 베이스는 비용이 들지 않는 `MockVideoProvider`로 다음 흐름을 실행합니다.
+현재 베이스는 PostgreSQL에 작업을 저장하고, 비용이 들지 않는 `MockVideoProvider`로 다음 흐름을 실행합니다.
 
 ```text
 프로젝트 생성 → 장면 큐 등록 → 비동기 생성 → 진행 상태 갱신 → 완료 결과 확인
@@ -10,8 +10,9 @@ AI 영상 API를 단순 호출하는 앱이 아니라, 여러 장면을 안전�
 
 ## 기술 구성
 
-- Backend: Java 21, Spring Boot 4.1, Maven
+- Backend: Java 21, Spring Boot 4.1, Spring JDBC, Flyway, Maven
 - Frontend: React 19, TypeScript, Vite
+- Data: PostgreSQL 17
 - Runtime: Docker Compose, Nginx
 - Video generation: provider adapter pattern, mock provider first
 - Planned rendering: FFmpeg
@@ -24,6 +25,8 @@ AI 영상 API를 단순 호출하는 앱이 아니라, 여러 장면을 안전�
 Copy-Item .env.example .env
 docker compose up --build
 ```
+
+PostgreSQL 데이터는 Compose의 `postgres-data` volume에 저장되므로 컨테이너를 다시 만들어도 프로젝트가 유지됩니다. `QUEUED` 또는 `PROCESSING` 상태에서 API가 재시작되면 완료되지 않은 장면부터 Mock 생성을 재개합니다.
 
 - Studio UI: <http://localhost:3000>
 - Backend health: <http://localhost:8080/actuator/health>
@@ -96,7 +99,7 @@ GET /api/providers
 
 ## 다음 구현 순서
 
-1. PostgreSQL 기반 작업 영속화와 재시작 복구
+1. 생성 시도 이력과 idempotency key 저장
 2. Redis 또는 메시지 큐 기반 worker 분리
 3. Sora 또는 Veo provider 하나 연결
 4. 장면 단위 재시도와 부분 재생성

@@ -16,6 +16,7 @@ public record VideoProjectResponse(
         String aspectRatio,
         ProjectStatus status,
         String errorCode,
+        String providerName,
         Instant createdAt,
         Instant updatedAt,
         List<SceneResponse> scenes) {
@@ -29,6 +30,7 @@ public record VideoProjectResponse(
                 project.getAspectRatio(),
                 project.getStatus(),
                 project.getErrorCode(),
+                project.getProviderName(),
                 project.getCreatedAt(),
                 project.getUpdatedAt(),
                 project.getScenes().stream().map(scene -> new SceneResponse(

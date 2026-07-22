@@ -1,6 +1,16 @@
 spring:
   application:
     name: fire-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fire}
+    username: ${DB_USERNAME:fire}
+    password: ${DB_PASSWORD:fire-local}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+  flyway:
+    enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
