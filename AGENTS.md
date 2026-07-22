@@ -35,3 +35,4 @@ FIRE is an AI-assisted short-form video production pipeline. The product value i
 - API errors are structured and do not expose credentials or raw provider payloads.
 - The UI shows queued, processing, completed, and failed states.
 - README and architecture docs are updated when contracts or state transitions change.
+- Update `PORTFOLIO.md` whenever a feature, architecture decision, verification result, metric, or project limitation changes. Keep implemented and planned work clearly separated.
