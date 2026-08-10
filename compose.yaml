@@ -18,9 +18,21 @@ services:
       context: ./backend
     environment:
       FIRE_VIDEO_DEFAULT_PROVIDER: ${VIDEO_PROVIDER:-mock}
+      FIRE_VIDEO_GEMINI_ENABLED: ${FIRE_VIDEO_GEMINI_ENABLED:-false}
+      FIRE_VIDEO_GEMINI_PAID_GENERATION_ENABLED: ${FIRE_VIDEO_GEMINI_PAID_GENERATION_ENABLED:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_VIDEO_MODEL: ${GEMINI_VIDEO_MODEL:-gemini-omni-flash-preview}
+      GEMINI_API_REVISION: ${GEMINI_API_REVISION:-2026-05-20}
+      GEMINI_GENERATION_TIMEOUT_MINUTES: ${GEMINI_GENERATION_TIMEOUT_MINUTES:-15}
+      GEMINI_ESTIMATED_COST_PER_SECOND_USD: ${GEMINI_ESTIMATED_COST_PER_SECOND_USD:-0.10}
+      GEMINI_ESTIMATED_OUTPUT_SECONDS: ${GEMINI_ESTIMATED_OUTPUT_SECONDS:-10}
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-fire}
       DB_USERNAME: ${DB_USERNAME:-fire}
       DB_PASSWORD: ${DB_PASSWORD:-fire-local}
+      FIRE_MEDIA_ROOT: /app/data/media
+      FIRE_RENDER_TIMEOUT_MINUTES: ${FIRE_RENDER_TIMEOUT_MINUTES:-30}
+    volumes:
+      - media-data:/app/data
     ports:
       - "8080:8080"
     healthcheck:
@@ -43,3 +55,4 @@ services:
 
 volumes:
   postgres-data:
+  media-data:

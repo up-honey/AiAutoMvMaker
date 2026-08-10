@@ -11,6 +11,7 @@ public final class VideoProject {
     private final String topic;
     private final String stylePrompt;
     private final String aspectRatio;
+    private final RenderPreset renderPreset;
     private final List<VideoScene> scenes;
     private final Instant createdAt;
     private volatile Instant updatedAt;
@@ -30,6 +31,29 @@ public final class VideoProject {
                 topic,
                 stylePrompt,
                 aspectRatio,
+                RenderPreset.CLEAN,
+                scenes,
+                Instant.now(),
+                Instant.now(),
+                ProjectStatus.DRAFT,
+                null,
+                null);
+    }
+
+    public VideoProject(
+            String title,
+            String topic,
+            String stylePrompt,
+            String aspectRatio,
+            RenderPreset renderPreset,
+            List<VideoScene> scenes) {
+        this(
+                UUID.randomUUID(),
+                title,
+                topic,
+                stylePrompt,
+                aspectRatio,
+                renderPreset,
                 scenes,
                 Instant.now(),
                 Instant.now(),
@@ -44,6 +68,7 @@ public final class VideoProject {
             String topic,
             String stylePrompt,
             String aspectRatio,
+            RenderPreset renderPreset,
             List<VideoScene> scenes,
             Instant createdAt,
             Instant updatedAt,
@@ -55,6 +80,7 @@ public final class VideoProject {
         this.topic = topic;
         this.stylePrompt = stylePrompt;
         this.aspectRatio = aspectRatio;
+        this.renderPreset = renderPreset;
         this.scenes = List.copyOf(scenes);
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -69,6 +95,7 @@ public final class VideoProject {
             String topic,
             String stylePrompt,
             String aspectRatio,
+            RenderPreset renderPreset,
             List<VideoScene> scenes,
             Instant createdAt,
             Instant updatedAt,
@@ -81,6 +108,7 @@ public final class VideoProject {
                 topic,
                 stylePrompt,
                 aspectRatio,
+                renderPreset,
                 scenes,
                 createdAt,
                 updatedAt,
@@ -159,6 +187,10 @@ public final class VideoProject {
 
     public String getAspectRatio() {
         return aspectRatio;
+    }
+
+    public RenderPreset getRenderPreset() {
+        return renderPreset;
     }
 
     public List<VideoScene> getScenes() {

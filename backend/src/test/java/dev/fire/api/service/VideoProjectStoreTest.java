@@ -27,10 +27,15 @@ class VideoProjectStoreTest {
     private VideoProjectStore store;
 
     @Autowired
+    private ProjectRenderStore renderStore;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void cleanDatabase() {
+        jdbcTemplate.update("DELETE FROM project_renders");
+        jdbcTemplate.update("DELETE FROM media_assets");
         jdbcTemplate.update("DELETE FROM video_scenes");
         jdbcTemplate.update("DELETE FROM video_projects");
     }
@@ -74,6 +79,19 @@ class VideoProjectStoreTest {
         assertThat(recoverable).hasSize(1);
         assertThat(recoverable.getFirst().getScenes().getFirst().getStatus())
                 .isEqualTo(SceneStatus.PROCESSING);
+    }
+
+    @Test
+    void persistsRenderStateAndPreventsDuplicateQueueing() {
+        var project = store.save(project());
+        var render = renderStore.queue(project.getId());
+        render.markProcessing();
+        renderStore.save(render);
+
+        assertThat(renderStore.findRecoverable()).extracting(item -> item.getProjectId())
+                .containsExactly(project.getId());
+        assertThatThrownBy(() -> renderStore.queue(project.getId()))
+                .isInstanceOf(InvalidRenderStateException.class);
     }
 
     private VideoProject project() {

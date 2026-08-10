@@ -14,10 +14,16 @@ public class MockVideoProvider implements VideoProvider {
     }
 
     @Override
-    public VideoGenerationResult generate(VideoGenerationCommand command) {
+    public VideoGenerationSubmission submit(VideoGenerationCommand command) {
         if (command.prompt().toLowerCase(Locale.ROOT).contains("[fail]")) {
             throw new VideoProviderException("MOCK_PROVIDER_REJECTED");
         }
+
+        return new VideoGenerationSubmission("mock-" + UUID.randomUUID());
+    }
+
+    @Override
+    public VideoGenerationResult awaitResult(VideoGenerationCommand command, String providerJobId) {
 
         try {
             Thread.sleep(300);
@@ -26,7 +32,6 @@ public class MockVideoProvider implements VideoProvider {
             throw new VideoProviderException("GENERATION_INTERRUPTED");
         }
 
-        var jobId = "mock-" + UUID.randomUUID();
-        return new VideoGenerationResult(jobId, "mock://renders/" + jobId + ".mp4");
+        return new VideoGenerationResult(providerJobId, "mock://renders/" + providerJobId + ".mp4");
     }
 }

@@ -2,15 +2,19 @@ spring:
   application:
     name: fire-api
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/fire}
-    username: ${DB_USERNAME:fire}
-    password: ${DB_PASSWORD:fire-local}
+    url: ${DB_URL:jdbc:h2:mem:fire;MODE=PostgreSQL;DB_CLOSE_DELAY=-1}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 5000
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 205MB
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
@@ -31,3 +35,27 @@ management:
 fire:
   video:
     default-provider: ${FIRE_VIDEO_DEFAULT_PROVIDER:mock}
+    gemini:
+      enabled: ${FIRE_VIDEO_GEMINI_ENABLED:false}
+      paid-generation-enabled: ${FIRE_VIDEO_GEMINI_PAID_GENERATION_ENABLED:false}
+      api-key: ${GEMINI_API_KEY:}
+      base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
+      model: ${GEMINI_VIDEO_MODEL:gemini-omni-flash-preview}
+      api-revision: ${GEMINI_API_REVISION:2026-05-20}
+      request-timeout-seconds: ${GEMINI_REQUEST_TIMEOUT_SECONDS:30}
+      generation-timeout-minutes: ${GEMINI_GENERATION_TIMEOUT_MINUTES:15}
+      poll-interval-seconds: ${GEMINI_POLL_INTERVAL_SECONDS:5}
+      max-inline-input-mb: ${GEMINI_MAX_INLINE_INPUT_MB:20}
+      max-output-mb: ${GEMINI_MAX_OUTPUT_MB:100}
+      estimated-cost-per-second-usd: ${GEMINI_ESTIMATED_COST_PER_SECOND_USD:0.10}
+      estimated-output-seconds: ${GEMINI_ESTIMATED_OUTPUT_SECONDS:10}
+  media:
+    storage-root: ${FIRE_MEDIA_ROOT:./data/media}
+    max-image-mb: ${FIRE_MAX_IMAGE_MB:15}
+    max-video-mb: ${FIRE_MAX_VIDEO_MB:200}
+    max-audio-mb: ${FIRE_MAX_AUDIO_MB:30}
+    max-generated-video-mb: ${GEMINI_MAX_OUTPUT_MB:100}
+  render:
+    ffmpeg-path: ${FIRE_FFMPEG_PATH:ffmpeg}
+    ffprobe-path: ${FIRE_FFPROBE_PATH:ffprobe}
+    timeout-minutes: ${FIRE_RENDER_TIMEOUT_MINUTES:30}
