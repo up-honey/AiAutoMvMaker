@@ -3,12 +3,6 @@ import { createProject, listProjects, listProviders, resolveAssetUrl, startGener
 import type { AssetKind, CreateVideoProjectInput, MediaAsset, ProjectStatus, RenderPreset, VideoProject } from './types'
 import './styles.css'
 
-const SCENE_PLACEHOLDER = [
-  '예: 신랑 신부가 버진로드를 걷는 장면, 따뜻하고 화사한 색감',
-  '예: 커플 사진이 음악에 맞춰 빠르게 전환되는 장면',
-  '예: 축하 메시지와 함께 마무리되는 감동적인 엔딩',
-].join('\n')
-
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   DRAFT: '초안',
   QUEUED: '대기 중',
@@ -46,21 +40,32 @@ function App() {
   const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('9:16')
-  const [sceneText, setSceneText] = useState('')
-  const [renderPreset, setRenderPreset] = useState<RenderPreset>('ROMANTIC')
+  const [styleChoice, setStyleChoice] = useState<RenderPreset | 'CUSTOM'>('ROMANTIC')
+  const [customStyle, setCustomStyle] = useState('')
   const [imagesPerSecond, setImagesPerSecond] = useState(2)
   const [visualFiles, setVisualFiles] = useState<File[]>([])
   const [soundtrackMode, setSoundtrackMode] = useState<'AI' | 'UPLOAD'>('AI')
+  const [aiSoundtrackPrompt, setAiSoundtrackPrompt] = useState('')
   const [soundtrack, setSoundtrack] = useState<File | null>(null)
   const [submitStatus, setSubmitStatus] = useState<string | null>(null)
+  const [openSettings, setOpenSettings] = useState<'VIDEO' | 'OUTPUT' | null>(null)
 
   const scenePrompts = useMemo(
-    () => sceneText
-      .split('\n')
-      .map((scene) => scene.trim())
-      .filter(Boolean),
-    [sceneText],
+    () => topic.trim() ? [topic.trim()] : [],
+    [topic],
   )
+  const imageFileCount = useMemo(
+    () => visualFiles.filter((file) => visualKind(file) === 'IMAGE').length,
+    [visualFiles],
+  )
+
+  const renderPreset: RenderPreset = styleChoice === 'CUSTOM' ? 'CLEAN' : styleChoice
+  const selectedStyleLabel = styleChoice === 'CUSTOM'
+    ? '직접 입력'
+    : RENDER_PRESETS.find((preset) => preset.value === styleChoice)?.label ?? ''
+  const selectedStyleDescription = styleChoice === 'CUSTOM'
+    ? '직접 입력한 분위기는 AI 생성 프롬프트에 반영되며, 최종 합성은 자연스러운 원본 톤을 사용합니다.'
+    : RENDER_PRESETS.find((preset) => preset.value === styleChoice)?.description ?? ''
 
   const refresh = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true)
@@ -94,11 +99,11 @@ function App() {
     event.preventDefault()
 
     if (scenePrompts.length === 0) {
-      setError('장면 프롬프트를 한 개 이상 입력하세요.')
+      setError('영상 프롬프트를 입력하세요.')
       return
     }
-    if (scenePrompts.length > 12) {
-      setError('장면은 최대 12개까지 만들 수 있습니다.')
+    if (styleChoice === 'CUSTOM' && !customStyle.trim()) {
+      setError('직접 입력할 영상 분위기를 작성해 주세요.')
       return
     }
 
@@ -132,9 +137,15 @@ function App() {
     const input: CreateVideoProjectInput = {
       title,
       topic,
-      stylePrompt: soundtrackMode === 'AI'
-        ? `${topic}\n배경음악은 영상 분위기에 어울리도록 AI가 생성합니다.`
-        : topic,
+      stylePrompt: [
+        topic,
+        `영상 분위기: ${styleChoice === 'CUSTOM'
+          ? customStyle.trim()
+          : `${RENDER_PRESETS.find((preset) => preset.value === styleChoice)?.label} · ${selectedStyleDescription}`}`,
+        soundtrackMode === 'AI'
+          ? `배경음악: ${aiSoundtrackPrompt.trim() || '영상 분위기에 어울리도록 AI가 생성합니다.'}`
+          : null,
+      ].filter(Boolean).join('\n'),
       aspectRatio,
       renderPreset,
       scenePrompts,
@@ -215,33 +226,17 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" id="top">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="FIRE Studio 홈">
-          <span className="brand-mark">F</span>
+        <a className="brand" href="#top" aria-label="AI 영상 만들기 홈">
+          <span className="brand-mark">▶</span>
           <span>
-            <strong>FIRE</strong>
-            <small>Frame Intelligence Rendering Engine</small>
+            <strong>AI 영상 만들기</strong>
+            <small>사진·동영상·음악으로 원하는 영상을 완성하세요</small>
           </span>
         </a>
-        <div className="runtime-badge"><span /> Mock 기본 · 유료 공급자는 명시적 동의</div>
+        <div className="runtime-badge"><span /> 안전한 Mock 제작 · 유료 생성은 확인 후 진행</div>
       </header>
-
-      <section className="hero" id="top">
-        <div>
-          <p className="eyebrow">AI VIDEO MAKER</p>
-          <h1>사진과 영상으로,<br />우리만의 이야기를.</h1>
-          <p className="hero-copy">
-            사진과 동영상을 장면마다 여러 개 추가하고, 좋아하는 음악과 분위기를 골라
-            하나의 자연스러운 영상으로 완성해 보세요.
-          </p>
-        </div>
-        <div className="hero-metric">
-          <span>PIPELINE</span>
-          <strong>{projects.length}</strong>
-          <small>projects created</small>
-        </div>
-      </section>
 
       {error && <div className="error-banner" role="alert">{error}</div>}
 
@@ -252,11 +247,11 @@ function App() {
               <p className="step-number">01</p>
               <h2>새 영상 설계</h2>
             </div>
-            <span>최대 12장면</span>
+            <span>간편 제작</span>
           </div>
 
-          <label>
-            프로젝트 제목
+          <label className="title-field">
+            프로젝트 제목 <small>프로젝트 목록과 완성 영상의 이름으로 사용됩니다.</small>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
@@ -266,7 +261,7 @@ function App() {
             />
           </label>
 
-          <label>
+          <label className="video-prompt-field">
             영상 프롬프트 <small>주제와 원하는 분위기를 함께 적어주세요.</small>
             <textarea
               value={topic}
@@ -278,72 +273,7 @@ function App() {
             />
           </label>
 
-          <fieldset>
-            <legend>화면 비율</legend>
-            <div className="ratio-options">
-              {(['9:16', '16:9'] as const).map((ratio) => (
-                <label className={aspectRatio === ratio ? 'ratio active' : 'ratio'} key={ratio}>
-                  <input
-                    type="radio"
-                    name="aspectRatio"
-                    value={ratio}
-                    checked={aspectRatio === ratio}
-                    onChange={() => setAspectRatio(ratio)}
-                  />
-                  <span className={`ratio-icon ratio-${ratio.replace(':', '-')}`} />
-                  {ratio} {ratio === '9:16' ? 'Shorts' : 'Wide'}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>영상 분위기</legend>
-            <div className="preset-options">
-              {RENDER_PRESETS.map((preset) => (
-                <label className={renderPreset === preset.value ? 'preset active' : 'preset'} key={preset.value}>
-                  <input
-                    type="radio"
-                    name="renderPreset"
-                    value={preset.value}
-                    checked={renderPreset === preset.value}
-                    onChange={() => setRenderPreset(preset.value)}
-                  />
-                  <strong>{preset.label}</strong>
-                  <small>{preset.description}</small>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <label>
-            사진 전환 속도 <small>사진 1장당 {(1 / imagesPerSecond).toFixed(2)}초</small>
-            <div className="speed-control">
-              <input
-                type="range"
-                min="0.5"
-                max="5"
-                step="0.5"
-                value={imagesPerSecond}
-                onChange={(event) => setImagesPerSecond(Number(event.target.value))}
-              />
-              <strong>초당 {imagesPerSecond}장</strong>
-            </div>
-          </label>
-
-          <label>
-            장면 프롬프트 <small>한 줄이 한 장면입니다.</small>
-            <textarea
-              className="scene-input"
-              value={sceneText}
-              onChange={(event) => setSceneText(event.target.value)}
-              placeholder={SCENE_PLACEHOLDER}
-              rows={7}
-              required
-            />
-          </label>
-
-          <section className="media-builder" aria-labelledby="media-builder-title">
+          <section className="media-builder upload-field" aria-labelledby="media-builder-title">
             <div className="media-builder-heading">
               <div>
                 <strong id="media-builder-title">이미지·동영상 업로드</strong>
@@ -381,68 +311,225 @@ function App() {
             </label>
           </section>
 
-          <fieldset className="soundtrack-choice">
-            <legend>배경음악</legend>
-            <div className="audio-mode-options">
-              <label className={soundtrackMode === 'AI' ? 'audio-mode active' : 'audio-mode'}>
-                <input
-                  type="radio"
-                  name="soundtrackMode"
-                  value="AI"
-                  checked={soundtrackMode === 'AI'}
-                  onChange={() => {
-                    setSoundtrackMode('AI')
-                    setSoundtrack(null)
-                  }}
-                />
+          <div className="settings-popovers">
+            <div className={`settings-popover video-settings${openSettings === 'VIDEO' ? ' open' : ''}`}>
+              <button
+                className="settings-popover-trigger"
+                type="button"
+                aria-expanded={openSettings === 'VIDEO'}
+                aria-controls="video-settings-panel"
+                onClick={() => setOpenSettings((current) => current === 'VIDEO' ? null : 'VIDEO')}
+              >
                 <span>
-                  <strong>AI로 만들기</strong>
-                  <small>프롬프트 분위기에 맞춰 생성</small>
+                  <strong>영상 상세 설정</strong>
+                  <small>영상 분위기, 사진 전환 속도와 배경음악을 조정하세요.</small>
                 </span>
-              </label>
-              <label className={soundtrackMode === 'UPLOAD' ? 'audio-mode active' : 'audio-mode'}>
-                <input
-                  type="radio"
-                  name="soundtrackMode"
-                  value="UPLOAD"
-                  checked={soundtrackMode === 'UPLOAD'}
-                  onChange={() => setSoundtrackMode('UPLOAD')}
-                />
-                <span>
-                  <strong>직접 업로드</strong>
-                  <small>가지고 있는 음악 파일 사용</small>
+                <span className="settings-popover-value">
+                  {selectedStyleLabel}{imageFileCount > 0 ? ` · 초당 ${imagesPerSecond}장` : ''} · {soundtrackMode === 'AI' ? 'AI 음악' : '직접 음악'}
                 </span>
-              </label>
+              </button>
+
+              {openSettings === 'VIDEO' && (
+                <div id="video-settings-panel" className="settings-popover-panel video-settings-panel" role="group" aria-label="영상 상세 설정">
+                  <fieldset className="mood-field">
+                    <legend>영상 분위기 <small>전체 영상의 색감과 연출 방향을 선택합니다.</small></legend>
+                    <select
+                      className="mood-select"
+                      aria-label="영상 분위기"
+                      value={styleChoice}
+                      onChange={(event) => setStyleChoice(event.target.value as RenderPreset | 'CUSTOM')}
+                    >
+                      {RENDER_PRESETS.map((preset) => (
+                        <option value={preset.value} key={preset.value}>{preset.label}</option>
+                      ))}
+                      <option value="CUSTOM">직접 입력</option>
+                    </select>
+                    <p className="mood-description">{selectedStyleDescription}</p>
+                    {styleChoice === 'CUSTOM' && (
+                      <label className="custom-style-field">
+                        원하는 분위기 직접 입력
+                        <textarea
+                          value={customStyle}
+                          onChange={(event) => setCustomStyle(event.target.value)}
+                          placeholder="예: 파스텔 색감의 동화 같은 분위기, 따뜻한 햇살과 부드러운 카메라 움직임"
+                          rows={3}
+                          maxLength={300}
+                        />
+                      </label>
+                    )}
+                  </fieldset>
+
+                  {imageFileCount > 0 && (
+                    <label className="speed-field">
+                      사진 전환 속도 <small>선택한 이미지 {imageFileCount}장에 적용됩니다. 숫자가 클수록 빠르게 전환됩니다.</small>
+                      <div className="speed-control">
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="5"
+                          step="0.5"
+                          value={imagesPerSecond}
+                          onChange={(event) => setImagesPerSecond(Number(event.target.value))}
+                        />
+                        <strong>초당 {imagesPerSecond}장</strong>
+                      </div>
+                    </label>
+                  )}
+
+                  <fieldset className="soundtrack-choice">
+                    <legend>배경음악 <small>AI 생성 또는 가지고 있는 음악 파일 중 하나를 선택합니다.</small></legend>
+                    <div className="audio-mode-options">
+                      <label className={soundtrackMode === 'AI' ? 'audio-mode active' : 'audio-mode'}>
+                        <input
+                          type="radio"
+                          name="soundtrackMode"
+                          value="AI"
+                          checked={soundtrackMode === 'AI'}
+                          onChange={() => {
+                            setSoundtrackMode('AI')
+                            setSoundtrack(null)
+                          }}
+                        />
+                        <span>
+                          <strong>AI로 만들기</strong>
+                          <small>원하는 음악을 글로 요청</small>
+                        </span>
+                      </label>
+                      <label className={soundtrackMode === 'UPLOAD' ? 'audio-mode active' : 'audio-mode'}>
+                        <input
+                          type="radio"
+                          name="soundtrackMode"
+                          value="UPLOAD"
+                          checked={soundtrackMode === 'UPLOAD'}
+                          onChange={() => setSoundtrackMode('UPLOAD')}
+                        />
+                        <span>
+                          <strong>직접 업로드</strong>
+                          <small>가지고 있는 음악 파일 사용</small>
+                        </span>
+                      </label>
+                    </div>
+
+                    {soundtrackMode === 'AI' && (
+                      <label className="ai-soundtrack-prompt">
+                        AI 배경음악 요청 <small>원하는 분위기, 악기나 템포를 입력해 주세요.</small>
+                        <input
+                          value={aiSoundtrackPrompt}
+                          onChange={(event) => setAiSoundtrackPrompt(event.target.value)}
+                          placeholder="예: 따뜻한 피아노와 스트링이 어우러진 감동적인 웨딩 음악"
+                          maxLength={300}
+                        />
+                      </label>
+                    )}
+
+                    {soundtrackMode === 'UPLOAD' && (
+                      <div className={soundtrack ? 'soundtrack-upload selected' : 'soundtrack-upload'}>
+                        <span className="soundtrack-icon">♪</span>
+                        <div className="upload-copy">
+                          <strong>{soundtrack?.name ?? '배경음악 파일을 선택해 주세요'}</strong>
+                          <small>{soundtrack ? formatFileSize(soundtrack.size) : 'MP3, WAV, M4A, OGG · 최대 30MB'}</small>
+                        </div>
+                        <label className="file-picker">
+                          {soundtrack ? '변경' : '파일 선택'}
+                          <input
+                            key={soundtrack?.name ?? 'empty-soundtrack'}
+                            type="file"
+                            accept={AUDIO_ACCEPT}
+                            disabled={submitting}
+                            onChange={(event) => setSoundtrack(event.target.files?.[0] ?? null)}
+                          />
+                        </label>
+                        {soundtrack && (
+                          <button
+                            className="remove-file"
+                            type="button"
+                            aria-label={`${soundtrack.name} 제거`}
+                            onClick={() => setSoundtrack(null)}
+                          >×</button>
+                        )}
+                      </div>
+                    )}
+                  </fieldset>
+                </div>
+              )}
             </div>
 
-            {soundtrackMode === 'UPLOAD' && (
-              <div className={soundtrack ? 'soundtrack-upload selected' : 'soundtrack-upload'}>
-                <span className="soundtrack-icon">♪</span>
-                <div className="upload-copy">
-                  <strong>{soundtrack?.name ?? '배경음악 파일을 선택해 주세요'}</strong>
-                  <small>{soundtrack ? formatFileSize(soundtrack.size) : 'MP3, WAV, M4A, OGG · 최대 30MB'}</small>
+            <div className={`settings-popover output-settings${openSettings === 'OUTPUT' ? ' open' : ''}`}>
+              <button
+                className="settings-popover-trigger"
+                type="button"
+                aria-expanded={openSettings === 'OUTPUT'}
+                aria-controls="output-settings-panel"
+                onClick={() => setOpenSettings((current) => current === 'OUTPUT' ? null : 'OUTPUT')}
+              >
+                <span>
+                  <strong>출력 설정</strong>
+                  <small>해상도, 길이, 화면 비율과 출력 개수를 확인하세요.</small>
+                </span>
+                <span className="settings-popover-value">720P · 자동 길이 · {aspectRatio} · 1개 출력</span>
+              </button>
+
+              {openSettings === 'OUTPUT' && (
+                <div id="output-settings-panel" className="settings-popover-panel output-settings-panel" role="group" aria-label="출력 설정">
+              <div className="setting-block">
+                <div className="setting-heading">
+                  <strong>해상도</strong>
+                  <small>최종 MP4의 화면 크기입니다. 현재 안정적인 720P 렌더를 지원합니다.</small>
                 </div>
-                <label className="file-picker">
-                  {soundtrack ? '변경' : '파일 선택'}
-                  <input
-                    key={soundtrack?.name ?? 'empty-soundtrack'}
-                    type="file"
-                    accept={AUDIO_ACCEPT}
-                    disabled={submitting}
-                    onChange={(event) => setSoundtrack(event.target.files?.[0] ?? null)}
-                  />
-                </label>
-                {soundtrack && (
-                  <button
-                    className="remove-file"
-                    type="button"
-                    aria-label={`${soundtrack.name} 제거`}
-                    onClick={() => setSoundtrack(null)}
-                  >×</button>
-                )}
+                <div className="setting-segments" aria-label="해상도">
+                  <button className="setting-segment active" type="button" aria-pressed="true">720P</button>
+                  <button className="setting-segment" type="button" disabled title="1080P 렌더링은 준비 중입니다.">1080P · 준비 중</button>
+                </div>
               </div>
-            )}
-          </fieldset>
+
+              <div className="setting-block">
+                <div className="setting-heading">
+                  <strong>영상 길이</strong>
+                  <small>업로드한 사진 노출 시간과 동영상 재생 시간을 합산해 자동 결정됩니다.</small>
+                </div>
+                <div className="fixed-setting-value">소스 길이에 맞춤</div>
+              </div>
+
+              <fieldset className="setting-block ratio-setting">
+                <legend className="setting-heading">
+                  <strong>화면 비율</strong>
+                  <small>쇼츠·릴스는 세로형, 유튜브와 TV는 가로형이 적합합니다.</small>
+                </legend>
+                <div className="ratio-options">
+                  {(['9:16', '16:9'] as const).map((ratio) => (
+                    <label className={aspectRatio === ratio ? 'ratio active' : 'ratio'} key={ratio}>
+                      <input
+                        type="radio"
+                        name="aspectRatio"
+                        value={ratio}
+                        checked={aspectRatio === ratio}
+                        onChange={() => setAspectRatio(ratio)}
+                      />
+                      <span className={`ratio-icon ratio-${ratio.replace(':', '-')}`} />
+                      {ratio} {ratio === '9:16' ? '세로형' : '가로형'}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="setting-block">
+                <div className="setting-heading">
+                  <strong>출력 개수</strong>
+                  <small>한 번의 렌더링에서 생성할 최종 영상 수입니다.</small>
+                </div>
+                <div className="setting-segments output-count-options" aria-label="출력 개수">
+                  <button className="setting-segment active" type="button" aria-pressed="true">1개</button>
+                  {[2, 3, 4].map((count) => (
+                    <button className="setting-segment" type="button" disabled title="다중 출력은 준비 중입니다." key={count}>{count}개</button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="settings-note">현재 제공되는 옵션만 활성화했습니다. 준비 중인 옵션은 렌더 파이프라인 지원 후 사용할 수 있습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
 
           <button className="primary-button" type="submit" disabled={submitting}>
             {submitting ? (submitStatus ?? '처리 중…') : 'AI 영상 만들기'}
@@ -459,16 +546,17 @@ function App() {
             <button className="text-button" onClick={() => void refresh()} type="button">새로고침</button>
           </div>
 
-          {loading ? (
-            <div className="empty-state">프로젝트를 불러오는 중입니다.</div>
-          ) : projects.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-icon">＋</span>
-              <strong>첫 프로젝트를 만들어 보세요.</strong>
-              <p>왼쪽 설계를 저장하면 장면별 작업 상태가 여기에 표시됩니다.</p>
-            </div>
-          ) : (
-            <>
+          <div className={loading || projects.length === 0 ? 'monitor-content' : 'monitor-content has-projects'}>
+            {loading ? (
+              <div className="empty-state">프로젝트를 불러오는 중입니다.</div>
+            ) : projects.length === 0 ? (
+              <div className="empty-state">
+                <span className="empty-icon">＋</span>
+                <strong>첫 프로젝트를 만들어 보세요.</strong>
+                <p>왼쪽 설계를 저장하면 장면별 작업 상태가 여기에 표시됩니다.</p>
+              </div>
+            ) : (
+              <>
               <div className="project-tabs" aria-label="프로젝트 선택">
                 {projects.map((project) => (
                   <button
@@ -493,8 +581,9 @@ function App() {
                   onRender={handleRender}
                 />
               )}
-            </>
-          )}
+              </>
+            )}
+          </div>
         </section>
       </section>
     </main>
